@@ -3,11 +3,14 @@ import matplotlib.pyplot as plt
 import time
 from tqdm import tqdm
 #b
+#O(N^2) function converted to a recursive O(N) function
 def S_recursive(t_max,X_given):
     N_samples = len(X_given) - 1
     X = X_given
     S = np.zeros(t_max)
+    #one time sum over all samples
     S[0] = np.sum(X)
+    #censequent subtraction of the previous and the N-t sample point
     for t in tqdm(range(1,len(S)), desc = "t loop"):
         S[t] = S[t-1] - X[N_samples-t]
     return S
@@ -15,6 +18,7 @@ def S_recursive(t_max,X_given):
 
 def main(c = False , d = False, e = False):
     if c: 
+        
         X = [1,2,3]
         S, X1 = S_recursive(2, X)
         print(S)
@@ -22,7 +26,7 @@ def main(c = False , d = False, e = False):
         N = np.arange(1e7,1e8,1e7)
         print(len(N))
         timer = []
-        
+        #timing of the different sample sizes
         for n in tqdm(N,desc= "main loop d"):
             X_d = np.random.randint(0,42,int(n))
             t_max_d = len(X_d)-2
@@ -33,6 +37,7 @@ def main(c = False , d = False, e = False):
         
         plt.plot(N,timer)
         plt.savefig("./A0/graphics/d_plot.pdf")
+    #thats just for checking if the recursive function is right 
     if e:
         X_e = np.random.randint(0,42,1000)
         t_max = len(X_e)-2 
