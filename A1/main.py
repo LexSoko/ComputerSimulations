@@ -54,9 +54,10 @@ def hist_height_distribution(L, N , plot = False):
        height_6_bar.append(hist_b1[5]/w)
     hist_height , bins = np.histogram(height_6_bar)
     w_height = np.sum(hist_height)
-    print(bins)
-    plt.stairs(hist_height/w_height , bins,fill= True)
-    plt.show()
+    if plot:
+        plt.stairs(hist_height/w_height , bins,fill= True)
+        plt.show()
+    return hist_height, bins
 
 def main(a1=True, b1 = True):
    
@@ -72,7 +73,16 @@ def main(a1=True, b1 = True):
         std_heights = standart_deviations_height(hist_arr,plot = True)
     
     if b1:
-       hist_height_distribution(1000,1000,True)
+        hb1 , binb1 = hist_height_distribution(1000,1000,plot= True)
+        N = [10**m for m in range(2,6)]
+        hist_heights_N = []
+        for n in tqdm(N):
+            h , b = hist_height_distribution(1000,n)
+            hist_heights_N.append(h)
+        std_heights_N = standart_deviations_height
+           
+           
+           
 
 
     return
