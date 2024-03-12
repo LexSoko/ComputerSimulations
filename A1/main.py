@@ -25,20 +25,20 @@ def standart_deviations_height(hist_arr, plot=False):
     for h in hist_arr:
         std_bars.append(np.std(h))
     if plot:
-        plt.plot(len(hist_arr),std_bars, label = "standart deviations sample size ")
+        plt.plot(range(len(hist_arr)),std_bars, label = "standart deviations sample size ")   # this is nonesence , has to be reworked
         plt.xlabel("N")
         plt.legend()
-        plt.savefig("./A1/graphics/std_of_bar_heights.pdf")
+        plt.savefig("./A1/graphics/std_of_bar_heights1.pdf")
         plt.cla()
     return std_bars 
 
 
-def animate_hist(data,N):
+def animate_hist(data,N, range_randint = [0,42]):
     fig, ax = plt.subplots()
     def update(frame):
         ax.clear()  # Clear previous frame 
         ax.hist(data[:frame], bins=41, density= True)
-        ax.plot(np.arange(0,42), [1/42]*42)  # Update histogram with new data
+        ax.plot(np.arange(range_randint[0],range_randint[1]), [1/range_randint[1]]*range_randint[1])  # Update histogram with new data
         ax.set_title('Sample size {}'.format(N[frame])) 
     ani = FuncAnimation(fig, update, frames=len(data), blit=False, interval=3)
     plt.show()
@@ -70,7 +70,14 @@ def main(a1=True, b1 = True):
             hist_arr.append(hist)
         if True:
             animate_hist(x_random,N)    
-        std_heights = standart_deviations_height(hist_arr,plot = True)
+        std_heights = standart_deviations_height(hist_arr,plot = False)
+        plt.plot(N,std_heights, label = "standart deviations sample size ")
+        plt.plot(N, 1/(5*np.sqrt(N)), label = "$\\frac{1}{N}$")
+        plt.xlabel("N")
+        plt.legend()
+        plt.savefig("./A1/graphics/std_of_bar_heights_vs_expected_try.pdf")
+        plt.cla()
+
     
     if b1:
         hb1 , binb1 = hist_height_distribution(1000,1000,plot= True)
@@ -88,4 +95,4 @@ def main(a1=True, b1 = True):
     return
 
 
-main(a1 = False, b1 = True)
+main(a1 = True, b1 = False)
