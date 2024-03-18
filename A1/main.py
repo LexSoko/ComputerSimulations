@@ -143,10 +143,11 @@ def get_bayesian_expect(Ni,N,nb):
     return (Ni + 1)/(N + nb + 1)
 def get_bayesian_error(expect,N,nb):
     return np.sqrt((expect*(1-expect))/(N+nb+2))
+
 def gaussian(x,mu,std):
     return np.exp((-1/2)*((x-mu)/std)**2)/np.sqrt(2*np.pi*std**2)
 def bernoulli_error(Ni, N):
-    return np.sqrt(Ni*(1- Ni/N))/N
+    return np.sqrt(Ni*(1- Ni/N)/N)/np.sqrt(N)
 def bernoulli_error2(pi,N):
     return np.sqrt(pi*(1-pi))/np.sqrt(N)
 def cauchy(x):
@@ -315,61 +316,69 @@ def main(a1=True,ani_a1 = False, b1 = False, c1 = False , a2 = False, a3= False,
         ax_b3.hist(rejection_random_b3,bins=100, density=True)
         ax_b3.plot(x_total,env_dist)
         ax_b3.plot(x_total,prob_dist(x_total))
-        #ax_b3.hist(x_1,bins=100, density=True,histtype="step")
+        
         fig_b3.savefig("./A1/graphics/rejection_method_exp_dist_test.pdf")
     
 
     if a4:
-        g=1
-        cauchy_inverse = inverse_method(lambda x: inverse_cdf(x), 10000)
+        N= [100,1000,10000,100000]
+        for n in N:
+            cauchy_inverse = inverse_method(lambda x: inverse_cdf(x), n)
 
-        cauchy_envelope = reject_method( lambda x: prob_dist(x), 10000, pdf_name= "test8",bin_size=1,
-                            env0= lambda x: cauchy(x),
-                            trans0 = lambda x: inverse_cdf(x),
-                            inter0 = [-50,50],
-                            c0 =  2/(1-np.exp(-2))*1.02,)
-        print("acceptance rate should be ", 1/(2/(1-np.exp(-2))*1.02))
-        
-        exp_envelope = reject_method(lambda x: prob_dist(x),10000, pdf_name= "test_cond", bin_size=0.5, save=True,
-                            env0= lambda x: exp_dist_right(x,0.5),
-                            trans0 = lambda x: inverse_exp_right(x,0.5),
-                            inter0 = [-50,50],
-                            c0 = 3,)
-        print("acceptance rate should be ", 1/3)
-        generators = [cauchy_inverse,cauchy_envelope,exp_envelope] 
-        distributions = [lambda x: cauchy(x), lambda x: prob_dist(x),lambda x: prob_dist(x)]
-        histograms = []
-        bin_width = 0.5
+            cauchy_envelope = reject_method( lambda x: prob_dist(x), n, pdf_name= "test8",bin_size=1,
+                                env0= lambda x: cauchy(x),
+                                trans0 = lambda x: inverse_cdf(x),
+                                inter0 = [-50,50],
+                                c0 =  2/(1-np.exp(-2))*1.02,)
+            print("acceptance rate should be ", 1/(2/(1-np.exp(-2))*1.02))
 
-        fig_a4, ax_a4 = plt.subplots(3,2, figsize=[18,18])
-        for i, (g,d) in tqdm(enumerate(zip(generators,distributions)),desc = "generators loop"):
-            x = np.arange(-20,20,1e-2)
-            N = get_bin_number(g,bin_width)
-            center = get_bin_center(g,N)
-            hist , bin = np.histogram(g, bins=N)
-            print(hist)
-            hist2 , bin2 = np.histogram(g, bins=N, density= True)
-            frequentist_err = []
-            baysian_errors = []
-            bayesian_expect = []
-            for h in tqdm(hist,desc="hist loop"):
-                frequentist_err.append(np.sqrt(((h/len(g))*(1-h/len(g)))/len(g)))
-                bay_exp = get_bayesian_expect(h,len(g),N)
-                bayesian_expect.append(bay_exp/bin_width)
-                baysian_errors.append(get_bayesian_error(bay_exp, len(g), N))
-            ax_a4[i,0].hist(g,bins=N, density= True, label=f"frequentist {i}")
-            ax_a4[i,0].plot(x,d(x))
-            ax_a4[i,0].errorbar(center,hist2,frequentist_err, [0]*len(hist), fmt= ' ', capsize=1)
-            ax_a4[i,0].set_xlim(-20,20)
-            ax_a4[i,0].legend()
-            ax_a4[i,1].hist(g,bins=N, density= True, label=f"bayesian {i}")
-            ax_a4[i,1].plot(x,d(x))
-            ax_a4[i,1].errorbar(center, bayesian_expect, baysian_errors, [0]*len(hist),fmt= ' ', capsize=1)
-            ax_a4[i,1].set_xlim(-20,20)
-            ax_a4[i,1].legend()
+            exp_envelope = reject_method(lambda x: prob_dist(x),n, pdf_name= "test_cond", bin_size=0.5, save=True,
+                                env0= lambda x: exp_dist_right(x,0.5),
+                                trans0 = lambda x: inverse_exp_right(x,0.5),
+                                inter0 = [-50,50],
+                                c0 = 3,)
+            print("acceptance rate should be ", 1/3)
+            generators = [cauchy_inverse,cauchy_envelope,exp_envelope] 
+            generators_names = ["cauchy inverse method","cauchy reject method","exp reject method"]
+            distributions = [lambda x: cauchy(x), lambda x: prob_dist(x),lambda x: prob_dist(x)]
+            histograms = []
+            bin_width = 0.5
 
-        fig_a4.savefig("./A1/graphics/baysiana4_test.pdf")
-        fig_a4.clf()
+            print(len(generators[0]),len(generators[1]),len(generators[2]), "len")
+            fig_a4, ax_a4 = plt.subplots(3,2, figsize=[18,18])
+            
+            for i, (g2,d) in tqdm(enumerate(zip(generators,distributions)),desc = "generators loop"):
+                x = np.arange(-20,20,1e-2)
+                g = [i for i in g2 if i < 50 and i > -50]
+                N = get_bin_number(g,bin_width)
+                print(N,"binsnumber")
+                
+                print("len after filtering ", len(g), "and before ", len(g2))
+                center = get_bin_center(g,N)
+                hist , bin = np.histogram(g, bins=N)
+                print(len(hist), "len hist0")
+                hist2 , bin2 = np.histogram(g, bins=N, density= True)
+                frequentist_err = []
+                baysian_errors = []
+                bayesian_expect = []
+                for h in tqdm(hist,desc="hist loop"):
+                    frequentist_err.append(np.sqrt(((h/len(g))*(1-h/len(g)))/len(g)))
+                    bay_exp = get_bayesian_expect(h,len(g),N)
+                    bayesian_expect.append(bay_exp)
+                    baysian_errors.append(get_bayesian_error(bay_exp, len(g), N))
+                ax_a4[i,0].hist(g,bins=N, density= True, label=f"frequentist {generators_names[i]} \n N = {len(g)} ")
+                ax_a4[i,0].plot(x,d(x))
+                ax_a4[i,0].errorbar(center,hist2,frequentist_err, [0]*len(hist), fmt= ' ', capsize=1)
+                ax_a4[i,0].set_xlim(-20,20)
+                ax_a4[i,0].legend()
+                ax_a4[i,1].hist(g,bins=N, density= True, label=f"bayesian {generators_names[i]} \n N = {len(g)}")
+                ax_a4[i,1].plot(x,d(x))
+                ax_a4[i,1].errorbar(center, np.array(bayesian_expect)/bin_width, np.array(baysian_errors)/bin_width, [0]*len(hist),fmt= ' ', capsize=1)
+                ax_a4[i,1].set_xlim(-20,20)
+                ax_a4[i,1].legend()
+            fig_a4.suptitle(f'N = {n}')
+            fig_a4.savefig(f"./A1/graphics/bayesian_frequent_N{n}.pdf")
+            fig_a4.clf()
 
         
             
@@ -384,7 +393,7 @@ def main(a1=True,ani_a1 = False, b1 = False, c1 = False , a2 = False, a3= False,
     return
 
 
-main(a1 = False, b1 = False, c1 = False, a2 = False, a3 = False, b3=False, a4 = True)
+main(a1 = False, b1 = False, c1 = False, a2 = False, a3 = False, b3=False, a4 =  False)
 
 
 
