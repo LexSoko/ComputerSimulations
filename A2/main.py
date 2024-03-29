@@ -97,7 +97,7 @@ def main(a1 = False):
             ax_a1[k,1].set_ylabel("x(t)")
             ax_a1[k,1].errorbar(exp,centers,[0]*len(centers),error,fmt= ' ', capsize=1, color = "r", label = "bayesian error")
             ax_a1[k,1].legend()
-        fig_a1.savefig(path +f"markovchain_xi_1abc.pdf")
+        fig_a1.savefig(path +f"markovchain_xi_1abc2.pdf")
             #fig_a1.clf()
 
 
