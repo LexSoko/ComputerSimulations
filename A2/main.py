@@ -7,6 +7,7 @@ from scipy.stats import norm
 import random as rd
 from matplotlib import pyplot, transforms
 import os
+import statsmodels.api as sm
 path = os.getcwd() + "/A2/graphics/"
 def Metro_Hast_1D(sampleProb, deltaX, N , x0):
     x_random = np.zeros(N)
@@ -23,6 +24,29 @@ def Metro_Hast_1D(sampleProb, deltaX, N , x0):
             x_random[i] = x_random[i-1]
         accept_arr.append(accept/i)
     return x_random , accept_arr
+def autocorr_recursive(x):
+    x = np.array(x)
+    x_mean = np.mean(x)
+    N = len(x)
+    t = np.arange(0,N)
+    S = np.zeros(N)
+    S2 = np.zeros(N)
+    C = np.zeros(N)
+    C2 = np.zeros(N)
+    S[0] = np.sum(x)
+    S2[0] = np.sum(x)
+    C[0] = np.sum(x*x)
+    C2[0] = np.sum(x*x)
+    B = (N-t)*x_mean**2
+    for ti in range(1,N):
+        S[ti] = S[ti-1] - x[N-ti-1]
+        S2[ti] = S2[ti-1] - x[N-1]
+        C[ti] = C[ti-1] - x[N-ti-1]*x[N-1]
+        C2[ti] = C2[ti-1] - x[N-ti-1]**2
+    result = (C - x_mean*(S + S2) + B)/(C2 - 2*x_mean*S + B)
+    return result
+    
+
 
 def two_gaussian(x,x0):
     A = np.exp(-((x+x0)**2)/2)
@@ -42,8 +66,9 @@ def get_cmap(n, name='hsv'):
     '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
     RGB color; the keyword argument name must be a standard mpl colormap name.'''
     return plt.cm.get_cmap(name, n)
-def main(a1 = False):
-    if a1:
+
+def main(abc = False, d = False):
+    if abc:
         x_t = Metro_Hast_1D(lambda x: two_gaussian(x,2),2,100,0)
         
         
@@ -52,6 +77,7 @@ def main(a1 = False):
         Xi = [0,2,6]
         #plt.style.use("dark_background")
         fig_a1 , ax_a1 = plt.subplots(3,2, figsize=[22,14], sharey= False,gridspec_kw={'width_ratios': [2, 1]})
+        fig_a1.tight_layout()
         #fig_a1.set_facecolor('darkgray')
         for k,j in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
             xk = np.arange(-(j +4),j +4,1e-2)
@@ -88,22 +114,42 @@ def main(a1 = False):
             std_all_paths = np.std(all_paths_combined)
             pos_std = [mean_all_paths-std_all_paths,mean_all_paths + std_all_paths]
             ax_a1[k,1].set_xlim(0,max(hist_all)*1.6)
-            ax_a1[k,1].hlines(pos_std,0,max(hist_all)*1.2, "g", label = "$\sigma$")
-            ax_a1[k,1].hlines([mean_all_paths],0,max(hist_all)*1.2, "r", label = "$\mu$")
+            ax_a1[k,1].hlines(pos_std,0,max(hist_all)*1.2, "g", label = f"$\sigma$ = {std_all_paths:.2f}")
+            ax_a1[k,1].hlines([mean_all_paths],0,max(hist_all)*1.2, "r", label = f"$\mu$ = {mean_all_paths:.2f}")
             ax_a1[k,1].plot(tg,xk, label = "Sample distribution")
-            ax_a1[k,1].stairs(hist_all,bins_all, orientation = "horizontal", fill =True, color = cmap(k+20) , label = "Histogram all chains combined")
+            ax_a1[k,1].stairs(hist_all,bins_all, orientation = "horizontal", fill =True, color = cmap(45) , label = "Histogram all chains combined \n $N_i$ = 400")
+            ax_a1[k,1].stairs(hist_all,bins_all, orientation = "horizontal",  color = cmap(5) )
             #ax_a1[k,1].hist(np.concatenate(all_paths, axis=None),bins = 20,density = True,orientation ="horizontal")
+           
             ax_a1[k,1].set_xlabel("P / 1")
             ax_a1[k,1].set_ylabel("x(t)")
             ax_a1[k,1].errorbar(exp,centers,[0]*len(centers),error,fmt= ' ', capsize=1, color = "r", label = "bayesian error")
             ax_a1[k,1].legend()
-        fig_a1.savefig(path +f"markovchain_xi_1abc2.pdf")
+        fig_a1.savefig(path +f"markovchain_xi_1abc_final.pdf")
             #fig_a1.clf()
+    if d:
+        Xi = [0,2,6]
+        fig_d , ax_d = plt.subplots(3,3, figsize=[22,14], sharey= False,)
+        fig_d.tight_layout()
+        cmap = get_cmap(50,"ocean")
+        for i,xi in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
+            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),6,10000,np.random.random())
+            X_markov = X_markov[:100]
+            rho = sm.tsa.acf(X_markov, nlags=len(X_markov))
+            N = np.arange(0,len(X_markov),1)
+            autocorr_func = autocorr_recursive(X_markov)
+            ax_d[i,0].plot(N,X_markov, marker = ".", markersize = 2, color = cmap(5*i))
+            ax_d[i,1].hlines([0],0,100,"black")
+            ax_d[i,1].plot(N,rho,color = cmap(5*i))
+            #ax_d[i,1].plot(N,autocorr_func,color = cmap(10*i))
+            ax_d[i,2].scatter(X_markov[:(len(N)-1)],X_markov[1:],color = cmap(5*i))
+            
 
+        fig_d.savefig(path +"autocorrelation.pdf")
 
     return
 
 
 
 
-main(a1= True)
+main(abc= False,d = True)
