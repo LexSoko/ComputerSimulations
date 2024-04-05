@@ -1,13 +1,12 @@
 import numpy as np 
+import math as m
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from matplotlib.animation import PillowWriter, FFMpegWriter
 from tqdm import tqdm
-from scipy.stats import norm
-import random as rd
-from matplotlib import pyplot, transforms
+#from itertools import batched
+
+
 import os
-import statsmodels.api as sm
+
 path = os.getcwd() + "/A2/graphics/"
 def Metro_Hast_1D(sampleProb, deltaX, N , x0):
     x_random = np.zeros(N)
@@ -24,30 +23,16 @@ def Metro_Hast_1D(sampleProb, deltaX, N , x0):
             x_random[i] = x_random[i-1]
         accept_arr.append(accept/i)
     return x_random , accept_arr
-def autocorr_recursive(x):
-    x = np.array(x)
-    x_mean = np.mean(x)
-    N = len(x)
-    t = np.arange(0,N)
-    S = np.zeros(N)
-    S2 = np.zeros(N)
-    C = np.zeros(N)
-    C2 = np.zeros(N)
-    S[0] = np.sum(x)
-    S2[0] = np.sum(x)
-    C[0] = np.sum(x*x)
-    C2[0] = np.sum(x*x)
-    B = (N-t)*x_mean**2
-    for ti in range(1,N):
-        S[ti] = S[ti-1] - x[N-ti-1]
-        S2[ti] = S2[ti-1] - x[N-1]
-        C[ti] = C[ti-1] - x[N-ti-1]*x[N-1]
-        C2[ti] = C2[ti-1] - x[N-ti-1]**2
-    result = (C - x_mean*(S + S2) + B)/(C2 - 2*x_mean*S + B)
-    return result
+
     
 
-
+def auto_corr_recursive(x):
+    x_0 = x - np.mean(x)
+    cov = np.zeros(len(x))
+    cov[0] = x_0.dot(x_0)
+    for i in range(len(x)-1):
+            cov[i + 1] = x_0[i + 1 :].dot(x_0[: -(i + 1)])
+    return cov/cov[0] 
 def two_gaussian(x,x0):
     A = np.exp(-((x+x0)**2)/2)
     B = np.exp(-((x-x0)**2)/2)
@@ -67,7 +52,7 @@ def get_cmap(n, name='hsv'):
     RGB color; the keyword argument name must be a standard mpl colormap name.'''
     return plt.cm.get_cmap(name, n)
 
-def main(abc = False, d = False):
+def main(abc = False, d = False, e = False):
     if abc:
         x_t = Metro_Hast_1D(lambda x: two_gaussian(x,2),2,100,0)
         
@@ -109,47 +94,86 @@ def main(abc = False, d = False):
                 nb = len(hist_all)
                 exp.append(get_bayesian_expect(i,leng,nb))
                 error.append(get_bayesian_error(get_bayesian_expect(i,leng,nb),leng,nb))
-            #ax_a1[k,1].set_facecolor('darkgray')
+            
             mean_all_paths = np.mean(all_paths_combined)
             std_all_paths = np.std(all_paths_combined)
             pos_std = [mean_all_paths-std_all_paths,mean_all_paths + std_all_paths]
+
             ax_a1[k,1].set_xlim(0,max(hist_all)*1.6)
             ax_a1[k,1].hlines(pos_std,0,max(hist_all)*1.2, "g", label = f"$\sigma$ = {std_all_paths:.2f}")
             ax_a1[k,1].hlines([mean_all_paths],0,max(hist_all)*1.2, "r", label = f"$\mu$ = {mean_all_paths:.2f}")
             ax_a1[k,1].plot(tg,xk, label = "Sample distribution")
             ax_a1[k,1].stairs(hist_all,bins_all, orientation = "horizontal", fill =True, color = cmap(45) , label = "Histogram all chains combined \n $N_i$ = 400")
             ax_a1[k,1].stairs(hist_all,bins_all, orientation = "horizontal",  color = cmap(5) )
-            #ax_a1[k,1].hist(np.concatenate(all_paths, axis=None),bins = 20,density = True,orientation ="horizontal")
-           
             ax_a1[k,1].set_xlabel("P / 1")
             ax_a1[k,1].set_ylabel("x(t)")
             ax_a1[k,1].errorbar(exp,centers,[0]*len(centers),error,fmt= ' ', capsize=1, color = "r", label = "bayesian error")
             ax_a1[k,1].legend()
         fig_a1.savefig(path +f"markovchain_xi_1abc_final.pdf")
-            #fig_a1.clf()
+            
     if d:
         Xi = [0,2,6]
         fig_d , ax_d = plt.subplots(3,3, figsize=[22,14], sharey= False,)
         fig_d.tight_layout()
         cmap = get_cmap(50,"ocean")
         for i,xi in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
-            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),6,10000,np.random.random())
-            X_markov = X_markov[:100]
-            rho = sm.tsa.acf(X_markov, nlags=len(X_markov))
+            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),6,1000,np.random.random())
+            X_markov = X_markov[:200]
+           
             N = np.arange(0,len(X_markov),1)
-            autocorr_func = autocorr_recursive(X_markov)
-            ax_d[i,0].plot(N,X_markov, marker = ".", markersize = 2, color = cmap(5*i))
-            ax_d[i,1].hlines([0],0,100,"black")
-            ax_d[i,1].plot(N,rho,color = cmap(5*i))
-            #ax_d[i,1].plot(N,autocorr_func,color = cmap(10*i))
+
+            autocorr_func = auto_corr_recursive(X_markov)
+
+            ax_d[i,0].plot(N,X_markov, marker = ".", markersize = 2, color = cmap(5*i), label = f"Markov Chain $\\xi$ = {xi}")
+            ax_d[i,0].legend()
+            ax_d[i,1].hlines([0],0,200,"black")
+            ax_d[i,1].plot(N,autocorr_func,color = cmap(10*i), label = "$\\rho (t)$")
+            ax_d[i,1].legend()
             ax_d[i,2].scatter(X_markov[:(len(N)-1)],X_markov[1:],color = cmap(5*i))
+            ax_d[i,2].set_xlabel("$X_{i}$")
+            ax_d[i,2].set_ylabel("$X_{i+1}$")
             
 
-        fig_d.savefig(path +"autocorrelation.pdf")
+        fig_d.savefig(path +"autocorrelation_d.pdf")
+ 
+    if e:
+        
+        Xi = [0,2,6]
+        for i,xi in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
+            #fig_e , ax_e = plt.subplots(3,3, figsize=[22,14], sharey= False,)
+            #fig_e.tight_layout()
+            cmap = get_cmap(50,"ocean")
+            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),6,1000,np.random.random())
+            #X_markov = 2*np.arange(1000)
+            k = [2**n for n in range(round(np.log(len(X_markov))/(np.log(2)) -1 ))]
+            all_Blocks = []
+            Obi_mean = []
+            for ki in k:
+                chunk_amount = (len(X_markov)//ki)
+                chunk_size = chunk_amount*ki
+                blocks = np.array(np.split(X_markov[:chunk_size],chunk_amount))/ki
+                
+                blocks_mean = []
+                blocks_variance = []
+                for i in blocks:
+                    blocks_mean.append(np.mean(i))
+            
+                
+                all_Blocks.append(blocks)
+                Obi_mean.append(blocks_mean)
+            for j in Obi_mean:
+                print(len(j))
+                blocks_variance.append((np.std(j)**2))
+            plt.plot(np.log(k), blocks_variance, label = f"ki = {ki}, chunkssize = {chunk_size}")
+            plt.legend()
+            plt.show()
+                #print("\n",Obi_mean,ki,chunk_amount,len(blocks_mean),"\n")
+
+            
 
     return
 
 
 
 
-main(abc= False,d = True)
+main(abc= False,d = False, e = True)
