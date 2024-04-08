@@ -1,11 +1,9 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from matplotlib.animation import PillowWriter, FFMpegWriter
 from tqdm import tqdm
-from scipy.stats import norm
-import random as rd
-from matplotlib import pyplot, transforms
+
+
+
 
 def generate_hist(N,plot = False,range_randint = [0,42],bins = 41, zero_one = False):
     if zero_one:

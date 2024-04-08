@@ -24,7 +24,27 @@ def Metro_Hast_1D(sampleProb, deltaX, N , x0):
         accept_arr.append(accept/i)
     return x_random , accept_arr
 
-    
+def binning_anal(x, kmax = None):
+    if kmax == None:
+        k = [2**n for n in range(round(np.log(len(x))/(np.log(2)) -1 ))]
+    else:
+        k = [n for n in range(1,kmax)]
+    all_mean_k = np.zeros(len(k),dtype=type(np.array([])))
+    for j, kj in tqdm(enumerate(k),desc="mean loop binning",total=len(k)):
+        chunk_amount = (len(x)//kj)
+        chunk_size = chunk_amount*kj
+        blocks_k = np.array(np.split(x[:chunk_size],chunk_amount))
+        means_kj = []
+        for Bi in blocks_k:
+            means_kj.append(np.mean(Bi))
+        all_mean_k[j] = means_kj
+    all_variances_k = np.zeros(len(k))
+    for j, kj in tqdm(enumerate(k),desc="var loop binning",total=len(k)):
+        chunk_amount = (len(x)//kj)
+        all_variances_k[j] = (np.var(all_mean_k[j]))/len(all_mean_k[j])
+
+
+    return all_variances_k , k    
 
 def auto_corr_recursive(x):
     x_0 = x - np.mean(x)
@@ -139,35 +159,21 @@ def main(abc = False, d = False, e = False):
     if e:
         
         Xi = [0,2,6]
+        fig_e , ax_e = plt.subplots(3,3, figsize=[22,14], sharey= False,)
+        fig_e.tight_layout()
         for i,xi in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
-            #fig_e , ax_e = plt.subplots(3,3, figsize=[22,14], sharey= False,)
-            #fig_e.tight_layout()
-            cmap = get_cmap(50,"ocean")
-            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),6,1000,np.random.random())
-            #X_markov = 2*np.arange(1000)
-            k = [2**n for n in range(round(np.log(len(X_markov))/(np.log(2)) -1 ))]
-            all_Blocks = []
-            Obi_mean = []
-            for ki in k:
-                chunk_amount = (len(X_markov)//ki)
-                chunk_size = chunk_amount*ki
-                blocks = np.array(np.split(X_markov[:chunk_size],chunk_amount))/ki
+            deltax = 6
+            cmap = get_cmap(50,"winter")
+            if xi == 6:
+                deltax = 20
+            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),deltax,100000,0)
+            blocks_variance, k = binning_anal(X_markov,300)
+            ax_e[i,0].plot(k, blocks_variance,color= cmap((i+1)*10) ,label = f"$\\xi$ = {xi}, N = {len(X_markov)}\n $\\tau$ =  {(0.5*(blocks_variance[-1]/blocks_variance[0])):.2f}")
+            ax_e[i,0].legend()
+            ax_e[i,1].plot(np.arange(0,len(X_markov),1),X_markov, color= cmap((i+1)*10))
+            ax_e[i,2].hist(X_markov,bins=1000, orientation="horizontal",color = cmap((i+1)*10) )
+        fig_e.savefig(path + "binning_analysis_e100k.pdf")
                 
-                blocks_mean = []
-                blocks_variance = []
-                for i in blocks:
-                    blocks_mean.append(np.mean(i))
-            
-                
-                all_Blocks.append(blocks)
-                Obi_mean.append(blocks_mean)
-            for j in Obi_mean:
-                print(len(j))
-                blocks_variance.append((np.std(j)**2))
-            plt.plot(np.log(k), blocks_variance, label = f"ki = {ki}, chunkssize = {chunk_size}")
-            plt.legend()
-            plt.show()
-                #print("\n",Obi_mean,ki,chunk_amount,len(blocks_mean),"\n")
 
             
 
