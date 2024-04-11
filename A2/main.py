@@ -74,22 +74,18 @@ def get_cmap(n, name='hsv'):
 
 def main(abc = False, d = False, e = False):
     if abc:
-        x_t = Metro_Hast_1D(lambda x: two_gaussian(x,2),2,100,0)
-        
-        
-        
-        
+        x_t = Metro_Hast_1D(lambda x: two_gaussian(x,2),2,100,0) 
         Xi = [0,2,6]
-        #plt.style.use("dark_background")
+        
         fig_a1 , ax_a1 = plt.subplots(3,2, figsize=[22,14], sharey= False,gridspec_kw={'width_ratios': [2, 1]})
         fig_a1.tight_layout()
-        #fig_a1.set_facecolor('darkgray')
+        
         for k,j in tqdm(enumerate(Xi),desc="Xi loop",total=len(Xi)):
             xk = np.arange(-(j +4),j +4,1e-2)
             tg = two_gaussian(xk,j)
             all_paths = []
             cmap = get_cmap(50,'magma')
-            #ax_a1[k,0].set_facecolor('darkgray')
+            
             ax_a1[k,0].grid()
             for i in range(0,50):
                 start = np.random.randint(-(j +4)*10,(j +4)*10)/10
@@ -165,14 +161,14 @@ def main(abc = False, d = False, e = False):
             deltax = 6
             cmap = get_cmap(50,"winter")
             if xi == 6:
-                deltax = 20
-            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),deltax,100000,0)
+                deltax = 25
+            X_markov,a = Metro_Hast_1D(lambda x: two_gaussian(x,xi),deltax,1000000,0)
             blocks_variance, k = binning_anal(X_markov,300)
             ax_e[i,0].plot(k, blocks_variance,color= cmap((i+1)*10) ,label = f"$\\xi$ = {xi}, N = {len(X_markov)}\n $\\tau$ =  {(0.5*(blocks_variance[-1]/blocks_variance[0])):.2f}")
             ax_e[i,0].legend()
             ax_e[i,1].plot(np.arange(0,len(X_markov),1),X_markov, color= cmap((i+1)*10))
-            ax_e[i,2].hist(X_markov,bins=1000, orientation="horizontal",color = cmap((i+1)*10) )
-        fig_e.savefig(path + "binning_analysis_e100k.pdf")
+            ax_e[i,2].hist(X_markov,bins=500, orientation="horizontal",color = cmap((i+1)*10) )
+        fig_e.savefig(path + "binning_analysis_e1M_dx25.pdf")
                 
 
             

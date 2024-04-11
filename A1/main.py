@@ -1,7 +1,7 @@
 import numpy as np 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
+path = "./A1/graphics/"
 
 
 
@@ -43,14 +43,14 @@ def hist_height_distribution(L, N , bins_needed = (0,9), plot = False):
        #doesnt normalize the right way so a normalization factor is calculated
        
        height_selected_bars.append(hist_b1[bins_needed[0]:bins_needed[1]]) # extract selected bar
-    hist_height , bins = np.histogram(np.concatenate(height_selected_bars,axis=None), bins =50)
+    hist_height , bins = np.histogram(np.concatenate(height_selected_bars,axis=None), bins =20)
     w_height = np.sum(hist_height) # doesnt normalise it right, so do it manualy
     if plot:
         plt.stairs(hist_height/w_height , bins,fill= True)
         plt.show()
     return hist_height/w_height, bins , height_selected_bars
 
-def reject_method(generator,N,pdf_name = "rejection_mode",bin_size= 2, save = False, **kwargs ):
+def reject_method(generator,N,path = "",pdf_name = "rejection_mode",bin_size= 2, save = False, **kwargs ):
     #method that takes in a function to sample from via rejection 
     #takes also a part defined envelope function, that gets sampled with inverse method
     #key words arguments should have as first letter 
@@ -108,7 +108,7 @@ def reject_method(generator,N,pdf_name = "rejection_mode",bin_size= 2, save = Fa
         ax_b.plot(x_total,env_analytical, label = "Enveloping function")
         ax_b.plot(x_total,generator(x_total), label = "Rejection function")
         ax_b.legend()
-        fig_b.savefig(f"./A1/graphics/{pdf_name}.pdf")
+        fig_b.savefig(path + f"{pdf_name}.pdf")
     return random_enveloped
 def inverse_method(inverse_cdf_func, N):
     func_random = inverse_cdf_func(generate_hist(N,zero_one=True)[2])       
@@ -119,21 +119,22 @@ def inverse_method(inverse_cdf_func, N):
 def get_bin_number(randoms,bin_width):
     N = int(np.abs(max(randoms)- min(randoms))/bin_width)
     return N
-def get_bin_center(randoms, bin_number):
-    array_center = np.linspace(min(randoms), max(randoms), bin_number)
+def get_bin_center(bin):
+    array_center = 0.5*(bin[1:]+bin[:-1])
     return array_center
+
+
 #baysian expectation value an error
-def get_bayesian_expect(Ni,N,nb):
-    return (Ni + 1)/(N + nb + 1)
+def get_bayesian_expect(pi,N,nb):
+    return (pi*N + 1)/(N + nb + 1)
 def get_bayesian_error(expect,N,nb):
     return np.sqrt((expect*(1-expect))/(N+nb+2))
-
-
 #frequentist errors
 def bernoulli_error(Ni, N):
     return np.sqrt(Ni*(1- Ni/N)/N)/np.sqrt(N)
 def bernoulli_error2(pi,N):
     return np.sqrt(pi*(1-pi))/np.sqrt(N)
+
 #cauchy distribution problem 2
 def cauchy(x):
     return (1/np.pi)*(1/(1+x**2))
@@ -162,7 +163,7 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
         #plt.plot(N, 3/(10*np.sqrt(N)), label = "$\\frac{3}{10 \sqrt{N}}$")  # factor 1/5 for standart deviation  TODO= look into this
         plt.xlabel("N")
         plt.legend()
-        plt.savefig("./A1/graphics/std_of_bar_heights_1a.pdf")
+        plt.savefig(path +"1a_std_of_bar_heights.pdf")
         plt.cla()
     
     if b1: 
@@ -173,22 +174,24 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
         hist_heights_N = []
         
         for i, n in tqdm(enumerate(N)):
-            
+           
             h , b, height_random = hist_height_distribution(1000,n,bins_needed= (5,6)) #different sample sizes N , each height from 1000 samples,sixth bin
             axis[i].set_xlim(0.025, 0.175)
             axis[i].stairs(h , b,fill= True, label= f"Sample Size N = {n} \n Samples L = 1000")
+            #axis[i].hist(height_random ,bins=50, label= f"Sample Size N = {n} \n Samples L = 1000")
             axis[i].legend()
             hist_heights_N.append(height_random) #sixth bin height destribution
            
 
-        fig_gauss.savefig("./A1/graphics/all_heights_sixth_bin_1b.pdf")
+        fig_gauss.savefig(path +"1b_all_heights_sixth_bin.pdf")
         fig_gauss.clf()
         std_heights = standart_deviations_height(hist_heights_N) # standart deviations of the heights of the sixth bin
-        plt.plot
-        plt.plot(np.log10(N),std_heights, label="standard deviation of the height of the sixth bar ")
-        plt.xlabel("$\log_{10}(N)$ ")
-        plt.legend()
-        plt.savefig("./A1/graphics/std_of_sixth_bar_heights_1b.pdf")
+        fig_b1, axis_b1 = plt.subplots(1,1, figsize=[10, 12])
+        axis_b1.plot(np.log10(N),std_heights, label="standard deviation of the height of the sixth bar ")
+        axis_b1.set_xlabel("$\log_{10}(N)$ ")
+        axis_b1.set_ylabel("$\sigma_N$ ")
+        axis_b1.legend()
+        fig_b1.savefig(path +"1b_std_of_sixth_bar_heights.pdf")
             
     if c1:
         N_c1 = [69,420,1000,6969] #different sample sizes
@@ -214,13 +217,12 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
             ax_c1[i//2,i%2].errorbar(err_pos,hist_c1[0],error,[0]*len(hist_c1[0]), "r.", label=f"estimated error \n error_avg = {np.mean(error):2f}") 
             ax_c1[i//2,i%2].legend()
             
-        fig_c1.savefig("./A1/graphics/plot_estimated_error_1c.pdf")
+        fig_c1.savefig(path +"1c_plot_estimated_error.pdf")
         fig_c1.clf()
     
     if a2:
         sample_count = 40
         bin_size = 0.5
-        bin_number = get_bin_number(cauchy_total, bin_size)
         
         
         uniform_random = [generate_hist(100,zero_one=True)[2] for i in range(sample_count)] #uniform random numbers
@@ -228,6 +230,7 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
         sample_arr = [[s]*len(uniform_random[s]) for s in range(sample_count)] #so that each sample can be identified
         
         cauchy_total = np.concatenate(cauchy_sample,axis=None) #merge all samples
+        bin_number = get_bin_number(cauchy_total, bin_size)
         x = np.arange(-50,50,1e-2)
         
         #plot, first the uniform random samples, middle inverse of that samples, right the resulting distribution each sample summed 
@@ -243,30 +246,31 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
         ax_a2[2].hist(np.concatenate(cauchy_sample,axis=None), density=True, bins = bin_number,orientation ="horizontal")
         ax_a2[2].plot(cauchy(x),x, label ="$\\frac{1}{\pi} \\frac{1}{1+x^2}$")  
         ax_a2[2].legend()
-        fig_a2.savefig("./A1/graphics/cauchy_dist_mulitple_samples_2a.pdf")
+        fig_a2.savefig(path +"2a_cauchy_dist_mulitple_samples.pdf")
             
     if a3:
         #using rejection method with cauchy
-        random_a3 = reject_method(lambda x: prob_dist(x), 10000,
+        random_a3 = reject_method(lambda x: prob_dist(x), 10000,path = path ,
                                   env0 = lambda x: cauchy(x),
                                   trans0 = lambda x: inverse_cdf(x),
                                   int0 = [-30,30],
                                     c0 = 2/(1-np.exp(-2))*1.02, 
-                                  pdf_name="rejection_method_a3",
+                                  pdf_name="3a_rejection_method",
                                   bin_size= 0.5,
                                   save=True,
                                   )
     if b3:
         #kind of scetchy beause exp(-|x|) is discontinuous at x = 0, but hey it works
-        exp_envelope = reject_method(lambda x: prob_dist(x),10000, pdf_name= "rejection_method_exp_3b", bin_size=0.5, save=True,
+        exp_envelope = reject_method(lambda x: prob_dist(x),10000,path =path , pdf_name= "3b_rejection_method_exp", bin_size=0.5, save=True,
                                 env0= lambda x: exp_dist_right(x,0.5),
                                 trans0 = lambda x: inverse_exp_right(x,0.5),
                                 inter0 = [-50,50],
                                 c0 = 3,)
 
     if a4:
-        N= [100,1000,10000,100000]
+        N= [100,1000,10000,100000,int(1e6)]
         #calculating random samples from the methods
+        print("#######START######")
         for n in N:
             cauchy_inverse = inverse_method(lambda x: inverse_cdf(x), n)
 
@@ -275,14 +279,16 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
                                 trans0 = lambda x: inverse_cdf(x),
                                 inter0 = [-50,50],
                                 c0 =  2/(1-np.exp(-2))*1.02,)
+            print("#####################################################")
             print("acceptance rate should be ", 1/(2/(1-np.exp(-2))*1.02)) #theoretical acceptance rate
 
             exp_envelope = reject_method(lambda x: prob_dist(x),n, pdf_name= "test_cond", bin_size=0.5, save=True,
                                 env0= lambda x: exp_dist_right(x,0.5),
                                 trans0 = lambda x: inverse_exp_right(x,0.5),
                                 inter0 = [-50,50],
-                                c0 = 3,)
-            print("acceptance rate should be ", 1/3) #theoretical acceptance rate
+                                c0 = 4,)
+            print("acceptance rate should be ", 1/4) #theoretical acceptance rate
+            print("#####################################################")
             generators = [cauchy_inverse,cauchy_envelope,exp_envelope] 
             generators_names = ["cauchy inverse method","cauchy reject method","exp reject method"]
             distributions = [lambda x: cauchy(x), lambda x: prob_dist(x),lambda x: prob_dist(x)]
@@ -291,46 +297,53 @@ def main(a1=False, b1 = False, c1 = False , a2 = False, a3= False, b3=False,a4 =
             
             fig_a4, ax_a4 = plt.subplots(3,2, figsize=[18,18])
             #plotting all
+            print(f"N = {n}")
             for i, (g2,d) in tqdm(enumerate(zip(generators,distributions)),desc = "generators loop"):
+                print(f"func {generators_names[i]}, i = {i}")
                 x = np.arange(-20,20,1e-2)
                 g = [i for i in g2 if i < 20 and i > -20]
-                N = 40
+                nb = 80
                 
-                bin_width = np.abs(max(g)-min(g))/N 
-                print("binswidth", bin_width)
-                print("len after filtering ", len(g), "and before ", len(g2))
-                center = get_bin_center(g,N)
-                hist , bin = np.histogram(g, bins=N)
                 
+                
+                #print("len after filtering ", len(g), "and before ", len(g2))
+                hist , bin = np.histogram(g, bins=nb, density= True, range=(-20,20))
                
-                hist2 , bin2 = np.histogram(g, bins=N, density= True)
+                bin_width = np.abs(bin[0]-bin[1])
+                center = get_bin_center(bin)
+                
                 frequentist_err = []
                 baysian_errors = []
                 bayesian_expect = []
                 #calculaltiing the errors , with each method
                 for h in tqdm(hist,desc="hist loop"):
-                    frequentist_err.append(bernoulli_error(h,len(g)))
-                    bay_exp = get_bayesian_expect(h,len(g),N)
+                
+                    frequentist_err.append(bernoulli_error2(h,len(g)))
+                    bay_exp = get_bayesian_expect(h,len(g),nb)
                     bayesian_expect.append(bay_exp)
-                    baysian_errors.append(get_bayesian_error(bay_exp, len(g), N))
+                    baysian_errors.append(get_bayesian_error(bay_exp, len(g), nb))
                 #comparing frequentist (left) and bayesian (right)
-                ax_a4[i,0].stairs(hist2,bin2,label=f"frequentist {generators_names[i]} \n N = {len(g)} ", fill=True)
+                print("binswidth", bin_width)
+                print(generators_names[i],hist[38:42])
+                print("bayexp",bayesian_expect[38:42])
+                
+                ax_a4[i,0].stairs(hist,bin,label=f"frequentist {generators_names[i]} \n N = {len(g)} ", fill=True)
                 ax_a4[i,0].plot(x,d(x))
-                ax_a4[i,0].errorbar(center,hist2,frequentist_err, [0]*len(hist), fmt= ' ', capsize=1)
+                ax_a4[i,0].errorbar(center,hist,frequentist_err, [0]*len(hist), fmt= ' ', capsize=1)
                 ax_a4[i,0].set_xlim(-20,20)
                 ax_a4[i,0].legend()
-                ax_a4[i,1].stairs(hist2,bin2,label=f"bayesian {generators_names[i]} \n N = {len(g)}",fill=True)
+                ax_a4[i,1].stairs(hist,bin,label=f"bayesian {generators_names[i]} \n N = {len(g)}",fill=True)
                 ax_a4[i,1].plot(x,d(x))
-                ax_a4[i,1].errorbar(center, np.array(bayesian_expect)/bin_width, np.array(baysian_errors)/bin_width, [0]*len(hist),fmt= ' ', capsize=1)
+                ax_a4[i,1].errorbar(center, np.array(bayesian_expect), np.array(baysian_errors)/bin_width ,[0]*len(hist),fmt= ' ', capsize=1)
                 ax_a4[i,1].set_xlim(-20,20)
                 ax_a4[i,1].legend()
             fig_a4.suptitle(f'N = {n}')
-            fig_a4.savefig(f"./A1/graphics/bayesian_frequent_N{n}_4a.pdf")
+            fig_a4.savefig(path +f"4a_bayesian_frequent_N{n}.pdf")
             fig_a4.clf()
 
     return
 
-main(a1 = False, b1 = False, c1 = False, a2 = False, a3 = False, b3=False, a4 = False)
+main(a1 = False, b1 = False, c1 = False, a2 = False, a3 =False, b3=False, a4 = True)
 
 
 
