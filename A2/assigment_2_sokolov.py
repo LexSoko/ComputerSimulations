@@ -294,5 +294,5 @@ def main(abc = False, d = False,d2 = False, e = False, f=False):
 
 
 if __name__ == '__main__':
-    main(abc= False,d = False,d2=True, e = False, f =False)
+    main(abc= True,d = True,d2=False, e = True, f =True)
 
