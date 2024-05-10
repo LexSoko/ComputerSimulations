@@ -1,11 +1,25 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-
+import scipy.signal as signal
 from tqdm import tqdm
 from scipy.stats import norm
 import random as rd
 
 import os
+std_params_lfilter = {
+    "order": 3,
+    "crit_f": 0.4,
+    "type": 'low',
+}
+std_params_peaks = {
+    "height": None,
+    "width": 16,
+    "prominence": 8,
+    "threshold": None,
+    "distance": None,
+    "rel_height": 0.5
+}
+
 def generate_hist(N,plot = False,range_randint = [0,42],bins = 41, zero_one = False):
     if zero_one:
         x_random_num_arr = np.random.random(N)
@@ -83,6 +97,93 @@ def reject_method(generator,N,pdf_name = "rejection_mode",bin_size= 2, save = Fa
         ax_b.legend()
         fig_b.savefig(f"./A1/graphics/{pdf_name}.pdf")
     return random_enveloped
+
+def Metro_Hast_1D(sampleProb, deltaX, N , x0 ,disable_pgb= True,optimize = False ):
+    #if optimize is true, the function will calculate a guess for deltax and use it for the markovchain 
+    if optimize:
+        all_deltaX, min_index , _ = optimize_dX(sampleProb,findpeak_params = std_params_peaks,filter_params = std_params_lfilter)
+        deltaX = all_deltaX[min_index][-1]  #because of the bimodal nature of the distribution only the most right peak is counted
+    x_random = np.zeros(N) #initialize
+    x_random[0]  = x0
+    accept = 0
+    accept_arr = [] #for calculating the acceptance rate for each step
+    for i in tqdm(range(1,N), desc = "Metro Hasting Main Loop", disable= disable_pgb):
+        x_next = x_random[i-1] + (np.random.random() -0.5)*deltaX
+        #i assign the acceptance probability randomly if p_i/p_j < 1, Z_j -> Z_i 
+        if sampleProb(x_next)/sampleProb(x_random[i-1]) > np.random.random():
+            x_random[i] = x_next
+            accept += 1
+            
+        else:
+            x_random[i] = x_random[i-1]
+        accept_arr.append(accept/i)
+    return x_random , accept_arr, deltaX
+
+def optimize_dX(sampleProb,dxrange = [1,100], Navg = 2, N_of_samples = 1000, findpeak_params = std_params_peaks, filter_params = std_params_lfilter):
+    deltax = np.arange(dxrange[0],dxrange[1],1) #generating the needed dx window 
+    #for reducing the noic in the autocorrelation function
+    b, a = signal.butter(std_params_lfilter["order"],std_params_lfilter["crit_f"], btype= std_params_lfilter["type"])
+    integrated_all = []
+    #essential what i am doing here is the following:
+    #i calculte the autocoralation for a given dx N_avg times and than average the result
+    #because a negative or positive correlation is not desired i take the absolute value of the autocorrelation function
+    #this absolute function is a measure for far from uncorrelated the data is
+    #the area under this curve is proporsional to the correlation of the whole markov chain over the whole timescale for a given dx 
+    for k in tqdm(range(Navg),desc = "optimizing delta x"):
+        integrated = []
+        for i in deltax:
+            integrated.append(integral_autocorr(i,lambda x: Metro_Hast_1D(sampleProb,x,N_of_samples,0)))
+        integrated_all.append(integrated)
+    integrated_mean = np.array([np.mean(i) for i in np.array(integrated_all).T]).T #mean calculation of all integrals
+    intmean_filter = signal.filtfilt(b, a, integrated_mean) #appliying a low passfilte to get rid of the noice
+    #this function now can have pultiple minima (in our case 2)
+    #i look for local minima and return them
+    index, _ = signal.find_peaks(-intmean_filter,**std_params_peaks) 
+    
+    return deltax,index, intmean_filter
+
+#this function thakes a handle of the metrofunction with the desired distrubution and calculates the area under the autocorrelation functin
+def integral_autocorr(deltax,Metro):  
+    x_m , a ,_ = Metro(deltax)
+    autocorr_m = auto_corr_func(x_m)
+    #looking at the absolute value of the function because every difference from zero is undesirable
+    auto_integrated = np.sum(np.abs(autocorr_m))
+
+    return auto_integrated
+
+
+def binning_analysis(x, kmax = None):
+    #2**n doesnt work that good
+    if kmax == None:
+        k = np.array([2**n for n in range(round(np.log(len(x))/(np.log(2)) -1 ))])
+    else:
+        k = np.array([n for n in range(1,kmax)])
+    all_variances_k = np.zeros(len(k),dtype=type(np.array([]))) #array for all variance for each k
+    chunk_amount = (len(x)//k) #looking vor how many subarray i can do with each k
+    chunk_size = chunk_amount*k #this is the index for cutting the array
+    for j, kj in tqdm(enumerate(k),desc="mean loop binning",total=len(k)):
+        #i splitt the markovchain an calculate the mean of each bin, and than the variance of the whole sample
+        all_variances_k[j] = np.var(np.mean(np.split(np.array(x[:chunk_size[j]]),chunk_amount[j]), axis =1), axis =0)/chunk_amount[j]
+   
+    
+    return all_variances_k , k    
+
+#autocorellation function
+def auto_corr_func(x):
+    x_0 = x - np.mean(x)
+    cov = np.zeros(len(x))
+    cov[0] = x_0.dot(x_0) #variance of the data with itself
+    #equivalent to a convolution kind of
+    for i in range(len(x)-1):
+            cov[i + 1] = x_0[i + 1 :].dot(x_0[: -(i + 1)])
+    return cov/cov[0] 
+
+
+
+
+
+
+
 
 def inverse_method(inverse_cdf_func, N):
     func_random = inverse_cdf_func(generate_hist(N,zero_one=True)[2])       
