@@ -30,68 +30,77 @@ def fastsweep(lattice ,beta, L, startEnergy):
         for n in range(2):
             E_t += lattice[i,(j+(-1)**n)%len(lattice)]
             E_t += lattice[(i+(-1)**n)%len(lattice),j]
-            E_p += old_lattice[i,(j+(-1)**n)%len(lattice)]
-            E_p += old_lattice[(i+(-1)**n)%len(lattice),j]
+          
 
-        E_t = -E_t*lattice[i,j]
-        E_p = -E_p*flipped_spin
-        deltaE = E_t-E_p
-        if np.exp(-beta*(deltaE)) < np.random.random():
+        E_n = -E_t*lattice[i,j]
+        E_p = -E_t*flipped_spin
+        deltaE = E_n-E_p
+        if np.exp(-beta*deltaE) > np.random.random():
+            all_Energies[t] = deltaE + all_Energies[t-1]
+            all_Magnets[t]  = lattice.sum()
+        else:
             lattice = old_lattice
             all_Energies[t] = all_Energies[t-1]
             all_Magnets[t] = all_Magnets[t-1]
-        else:
-            all_Energies[t] = deltaE + all_Energies[t-1]
-            all_Magnets[t]  = lattice.sum()
         
     return all_Energies,all_Magnets
 #@njit("float64[:](float64[:])" ,nopython=True, nogil=True)
 def auto_corr_func(x):
     x_0 = x - np.mean(x)
     cov = np.zeros(len(x))
-    cov[0] = x_0.dot(x_0) #variance of the data with itself
+    cov[0] = x_0.dot(x_0) #variance of the data with itself 
     #equivalent to a convolution kind of
     for i in tqdm(range(len(x)-1),"auto corr loop "):
             cov[i + 1] = x_0[i + 1 :].dot(x_0[: -(i + 1)])
     return cov/cov[0] 
+def theory_energy(x):
+    A = np.exp(8*x) - np.exp(-8*x)
+    B = np.exp(8*x) + np.exp(-8*x) + 6
+    return -2*(A/B)
 
+def main(a2b5 = False, a3 = False,bc3 = False, a4 = False):
 
-def main(a2 = False, a3 = False,bc3 = False, a4 = False):
-
-    if a2:
-        BetaJ = np.arange(0.1,2,0.1)
+    if a2b5:
+        BetaJ = np.arange(0.1,1,0.01)
         Avg_Energies = np.zeros(len(BetaJ))
         Avg_Magnets = np.zeros(len(BetaJ))
-        for j, Bj in tqdm(enumerate(BetaJ), "a2 loop"):
-            lattice = get_lattice(2)
+        L = 2
+        start = time()
+        for j, Bj in tqdm(enumerate(BetaJ), "a2 loop", total=len(BetaJ)):
+            lattice = get_lattice(L,0.9)
             lattice_energy = get_energy(lattice)
-            Energy, Magnets = fastsweep(lattice,Bj,1000000,lattice_energy)
-            Avg_Energies[j] = np.mean(Energy)/len(lattice)**2
-            Avg_Magnets[j] = np.mean(Magnets)/len(lattice)**2
-
+            Energy, Magnets = fastsweep(lattice,Bj,2000000,lattice_energy)
+            Avg_Energies[j] = np.mean(Energy[1000000:]/len(lattice)**2)
+            Avg_Magnets[j] = np.mean(np.abs(Magnets[1000000:]/len(lattice)**2))
+        end = time()
+        runtime = end - start
         plt.style.use('bmh')
         cmap = get_cmap(50,"winter")
         figa2, axa2 = plt.subplots(2, figsize= (16,9))
-
-        axa2[0].plot(BetaJ, Avg_Energies, label = "Average Energies 2x2 Lattice \n Tmax = 1e6",color = cmap(20))
-        axa2[0].scatter([BetaJ[3]], [Avg_Energies[3]],s = 50, marker="+", color = "r", label =f"$\\beta J$ = 0.4 \n E = {Avg_Energies[3]:.3f}")
-        #axa2[0].vlines([BetaJ[3]],-2,-0.4, linestyles= "dashed", colors = "grey")
+        plt.suptitle("$\\Delta J \\beta$ = 0.01 coldstart $90\\%$ spin up")
+        axa2[0].plot(BetaJ, Avg_Energies, label = f"Average Energies {L}x{L} Lattice \n Tmax = 2e6",color = cmap(20))
+        if L == 2:
+            axa2[0].plot(BetaJ, theory_energy(BetaJ), "r--",label = "Energy Estimator: \n $-2 \\frac{e^{8 \\beta J}- e^{-8 \\beta J}}{e^{8 \\beta J}+ e^{-8 \\beta J} + 6}$")
+        axa2[0].scatter([BetaJ[30]], [Avg_Energies[30]],s = 50, marker="+", color = "r", label =f"$\\beta J$ = 0.4 \n E = {Avg_Energies[30]:.3f}")
+        axa2[1].vlines([0.44068],0,1, linestyles= "dashed", colors = "grey", label = f"$J \\beta_c$ = {0.44068}")
         #axa2[0].hlines([Avg_Energies[3]],0.1,1.75, linestyles= "dashed", colors = "grey")
         axa2[0].set_xlabel("$\\beta J$")
         axa2[0].set_ylabel("$\\bar{E}$")
         axa2[0].legend()
-        axa2[1].plot(BetaJ, Avg_Magnets, label = "Average Magnetization 2x2 Lattice \n Tmax = 1e6",color = cmap(40))
+        axa2[1].plot(BetaJ, Avg_Magnets, label = f"Average Magnetization {L}x{L}  Lattice \n Tmax = 2e6",color = cmap(40))
         axa2[1].set_xlabel("$\\beta J$")
         axa2[1].set_ylabel("$\\bar{M}$")
+        axa2[1].text(0.9,0.1,f"Runtime: {runtime/60:.0f} min {runtime%60:.1f} s",bbox=dict(facecolor=cmap(40), alpha=0.5))
         axa2[1].legend()
-        figa2.savefig(path+ "2x2LatticeAvg3.pdf")
+        
+        figa2.savefig(path+ f"{L}x{L}LatticeAvgEnergyMagnetoverT_vs_theory.pdf")
     if a3:
         BetaJ = [0.1,0.4,0.9]
         L_array = [300,300,10000]
         for Bj, L  in zip(BetaJ,L_array):
             lattice = get_lattice(2)
             lattice_energy = get_energy(lattice)
-            Energy, Magnets = sweep(lattice,Bj,L,lattice_energy, sequencelength=L/100)
+            Energy, Magnets = sweep(lattice,Bj,L,lattice_energy, sequencelength=len(lattice)**2)
     
     if bc3:
         BetaJ = np.arange(0.1,0.7,0.1)
@@ -168,11 +177,11 @@ def main(a2 = False, a3 = False,bc3 = False, a4 = False):
                 axa4_em[i,j].legend(loc= "upper right")
             figa4.savefig(path + "4a_autocorr_multiple_lattices.pdf")
             figa4_em.savefig(path + "4a_Energy_magnet_multiple_lattices.pdf")
-    lattice = get_lattice(200,0.5)
-    plt.imshow(lattice)
-    plt.show()
-    energy = get_energy(lattice)
-    E, M = sweep(lattice,1,1000000,energy,sequencelength=10000)
+    #lattice = get_lattice(10,0.5)
+    #plt.imshow(lattice)
+    #plt.show()
+    #energy = get_energy(lattice)
+    #E, M = sweep(lattice,0.6,1000000,energy,sequencelength=1000)
     return
 
 
@@ -259,7 +268,7 @@ def sweep(lattice ,beta, L, startEnergy, sequencelength = 1000):
 
 
 if __name__ == '__main__':
-    main(a2=False, a3= False , bc3 = False, a4 = False)
+    main(a2b5=True, a3= True , bc3 = False, a4 = False)
 
 
 

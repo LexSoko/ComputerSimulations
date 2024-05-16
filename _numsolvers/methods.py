@@ -4,7 +4,10 @@ import scipy.signal as signal
 from tqdm import tqdm
 from scipy.stats import norm
 import random as rd
-
+from numba import njit
+from scipy.ndimage import convolve, generate_binary_structure
+import matplotlib.style as mplstyle
+import matplotlib as mpl
 import os
 std_params_lfilter = {
     "order": 3,
@@ -178,25 +181,127 @@ def auto_corr_func(x):
             cov[i + 1] = x_0[i + 1 :].dot(x_0[: -(i + 1)])
     return cov/cov[0] 
 
-
-
-
-
-
-
-
 def inverse_method(inverse_cdf_func, N):
     func_random = inverse_cdf_func(generate_hist(N,zero_one=True)[2])       
     return func_random
 
-
 def get_bayesian_expect(Ni,N,nb):
     return (Ni + 1)/(N + nb + 1)
+
 def get_bayesian_error(expect,N,nb):
     return np.sqrt((expect*(1-expect))/(N+nb+2))
+
 def get_bin_number(randoms,bin_width):
     N = int(np.abs(max(randoms)- min(randoms))/bin_width)
     return N
+
 def get_bin_center(randoms, bin_number):
     array_center = np.linspace(min(randoms), max(randoms), bin_number)
     return array_center
+@njit("UniTuple(f8[:], 2)(f8[:,:], f8, i8, f8)", nopython=True, nogil=True)
+def fastsweep(lattice ,beta, L, startEnergy):
+    all_Energies = np.zeros(L)
+    all_Magnets = np.zeros(L)
+    all_Energies[0] = startEnergy
+    all_Magnets[0] = lattice.sum()
+    for t in range(1,L):
+        E_p = 0
+        E_t = 0
+        old_lattice = lattice.copy()
+        i = np.random.randint(0,len(lattice)) 
+        j = np.random.randint(0,len(lattice))
+        flipped_spin = lattice[i,j] 
+        lattice[i,j] = flipped_spin*(-1)
+        for n in range(2):
+            E_t += lattice[i,(j+(-1)**n)%len(lattice)]
+            E_t += lattice[(i+(-1)**n)%len(lattice),j]
+            E_p += old_lattice[i,(j+(-1)**n)%len(lattice)]
+            E_p += old_lattice[(i+(-1)**n)%len(lattice),j]
+
+        E_t = -E_t*lattice[i,j]
+        E_p = -E_p*flipped_spin
+        deltaE = E_t-E_p
+        if np.exp(-beta*deltaE) > np.random.random():
+            all_Energies[t] = deltaE + all_Energies[t-1]
+            all_Magnets[t]  = lattice.sum()
+        else:
+            lattice = old_lattice
+            all_Energies[t] = all_Energies[t-1]
+            all_Magnets[t] = all_Magnets[t-1]
+        if t%(L/20)==0:
+            print((t/L)*100, "%")
+        
+    return all_Energies,all_Magnets
+
+def get_energy(lattice):
+    convolution_mask = generate_binary_structure(2,1)
+    convolution_mask[1,1] = False
+    Energy =  -lattice*convolve(lattice,convolution_mask, mode = "wrap")/2
+    Energy = Energy.sum()
+    return Energy
+
+def get_lattice(L,spinRatio = 0.5):
+    random = np.random.random((L,L))
+    lattice = np.zeros((L,L))
+    lattice[random>=spinRatio] = 1
+    lattice[random<spinRatio] = -1
+    return lattice
+
+def sweep(lattice ,beta, L, startEnergy, sequencelength = 1000):
+    all_Energies = np.zeros(L)
+    all_Magnets = np.zeros(L)
+    all_Energies[0] = startEnergy
+    all_Magnets[0] = lattice.sum()
+    mplstyle.use('fast')
+    fig, ax = plt.subplots(1,3, figsize= (16,9))
+    plt.title(f"$\\beta J$ = {beta}")
+    for t in range(1,L):
+        E_p = 0
+        E_t = 0
+        old_lattice = lattice.copy()
+        i = np.random.randint(0,len(lattice)) 
+        j = np.random.randint(0,len(lattice))
+        flipped_spin = lattice[i,j] 
+        lattice[i,j] = flipped_spin*(-1)
+        for n in range(2):
+            E_t += lattice[i,(j+(-1)**n)%len(lattice)]
+            E_t += lattice[(i+(-1)**n)%len(lattice),j]
+            E_p += old_lattice[i,(j+(-1)**n)%len(lattice)]
+            E_p += old_lattice[(i+(-1)**n)%len(lattice),j]
+
+        E_t = -E_t*lattice[i,j]
+        E_p = -E_p*flipped_spin
+        deltaE = E_t-E_p
+        if np.exp(-beta*(deltaE)) < np.random.random():
+            lattice = old_lattice
+            all_Energies[t] = all_Energies[t-1]
+            all_Magnets[t] = all_Magnets[t-1]
+        else:
+            all_Energies[t] = deltaE + all_Energies[t-1]
+            all_Magnets[t]  = lattice.sum()
+        if (t%(sequencelength) == 0):
+            mpl.rcParams['path.simplify'] = True
+            mpl.rcParams['path.simplify_threshold'] = 1.0
+            ax[0].imshow(lattice)
+            ax[1].plot(np.arange(0,t,1),all_Energies[:t]/len(lattice)**2)
+            ax[1].set_xlabel("t / simulation time")
+            ax[1].set_ylabel("Energy")
+            ax[2].plot(np.arange(0,t,1),all_Magnets[:t]/len(lattice)**2)
+            ax[2].set_xlabel("t / simulation time")
+            ax[2].set_ylabel("Magnetization")
+            plt.show(block=False)
+            plt.pause(0.001)
+            ax[0].cla()
+            ax[1].cla()
+            ax[2].cla()
+        
+            
+    return all_Energies,all_Magnets
+
+def auto_time(auto):
+    for i in range(len(auto)):
+        if np.abs(auto[i]) < 0.07:
+            zeroindex = i
+            break
+    time = np.sum(auto[:zeroindex])
+    return time ,zeroindex
