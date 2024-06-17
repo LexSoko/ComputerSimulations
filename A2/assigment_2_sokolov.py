@@ -183,7 +183,7 @@ def main(abc = False, d = False,d2 = False, e = False, f=False):
             ax_a1[k,1].set_ylabel("x(t)")
             ax_a1[k,1].errorbar(exp,centers,[0]*len(centers),error,fmt= ' ', capsize=1, color = "r", label = "bayesian error")
             ax_a1[k,1].legend()
-        fig_a1.savefig(path +f"markovchain_1abc_final.pdf")
+        fig_a1.savefig(path +f"markovchain_1abc_finaltest.pdf")
             
     if d:
        
@@ -294,5 +294,5 @@ def main(abc = False, d = False,d2 = False, e = False, f=False):
 
 
 if __name__ == '__main__':
-    main(abc= True,d = True,d2=False, e = True, f =True)
+    main(abc= True,d = False ,d2=False, e = False, f =False)
 
