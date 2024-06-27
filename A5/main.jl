@@ -3,8 +3,8 @@ import Pkg;
 #Pkg.update("LinearAlgebra")
 #Pkg.update("Distributions")
 #Pkg.update("ProgressBars")
-#Pkg.update("Colors")
-#Pkg.add("LsqFit")
+
+using CSV, Tables
 using LsqFit
 using GLMakie
 using LinearAlgebra
@@ -18,6 +18,8 @@ kb = 1.3806e-23
 ϵ = 125.7 * kb
 σ = 0.3345 * 1e-9
 mass = 39.98 * 1.660 * 1e-27
+
+#got fucntion from the web because there is no implementaiton in julia i suppose
 function myhist(data, min, max, nbins)
     N = length(data)             # How many elements in the input vector 'data' ?
     delta = (max-min)/nbins      # Bin size is inferred here from the maximal, minimal, and bin number
@@ -49,7 +51,7 @@ end
 # Lenard-Jones potential function
 function LenardJones(r, mass, ϵ, g)
     mag = sqrt.(sum(r.^2, dims=3))[:,:,1]
-    a = ((48 * ϵ) / mass) .* (mag.^(-14) - 2^(-1) * mag.^(-8))
+    a = (48) .* (mag.^(-14) - 2^(-1) * mag.^(-8))
     N = size(r,2) 
     G = zeros(Float64,N,size(r,3))
     for i in 1:N
@@ -58,13 +60,13 @@ function LenardJones(r, mass, ϵ, g)
     
     return sum(r .* a, dims=1)[1, :, :] .-G
 end
-function LenardJonespot(positions,r, mass, ϵ, g)
+function LenardJonespot(positions,r, mass, ϵ,σ, g)
     mag = sqrt.(sum(r.^2, dims=3))[:,:,1]
-    a = (4 * ϵ) .* (mag.^(-12) - mag.^(-6))
+    a = -(4 ) .* (mag.^(-12) - mag.^(-6))
     N = size(r,2) 
     G = zeros(Float64,N,size(r,3))
     for i in 1:N
-        G[i,:] = [0 0 g*mass]
+        G[i,:] = [0 0 g]
     end
     E_g = positions.*G
     return sum(a, dims=1)[1, :, :] ,  E_g
@@ -89,7 +91,7 @@ function checkBoundary(position, velocity, boundary)
     end
     return velocity
 end 
-function set_molecule_pos(N::Int64, boundary; random = false, grid = [0 0 0]) 
+function set_molecule_pos(N::Int64, boundary; random = false, grid = [0 0 0], offset = [0 0 0]) 
     positions = zeros(Float64,N,size(boundary,2))
     velocities = zeros(Float64,N,size(boundary,2))
     if random
@@ -106,27 +108,31 @@ function set_molecule_pos(N::Int64, boundary; random = false, grid = [0 0 0])
             z = boundary[1,3] + 0.1
             while n < N
                 for i in 1:grid[1]
+                    if n > N
+                        break
+                    end
                     for j in 1:grid[2]
-                        positions[n,:] = [float(i)*1.12, float(j)*1.12, z*1.12]
-                        n = n + 1
                         if n > N
                             break
                         end
+                        positions[n,:] = [float(i)*1.12, float(j)*1.12, z*1.12]
+                    
+                        n = n + 1
                         
-                    end
-                    if n > N
-                        break
                     end
                 end
                 z= z+1.0
             end
         end
     end
+    N = size(positions,1)
+    offsets =  repeat(offset', N, 1)
+    positions = positions .+ offsets
     return positions , velocities
 end 
 
 # Leapfrog integration function
-function Leapfrog(A, nsteps, dt, x0::Matrix{Float64}, v0::Matrix{Float64},boundary)
+function Leapfrog(A::Function, nsteps::Int64, dt::Float64, x0::Matrix{Float64}, v0::Matrix{Float64},boundary::Matrix{Float64};nskip = 1)
     all_positions = zeros(Float64, nsteps, size(x0, 1), size(x0, 2))
     all_velocities = zeros(Float64, nsteps, size(x0, 1), size(x0, 2))
     all_accelerations = zeros(Float64, nsteps, size(x0, 1), size(x0, 2))
@@ -146,7 +152,7 @@ function Leapfrog(A, nsteps, dt, x0::Matrix{Float64}, v0::Matrix{Float64},bounda
 end
 
 
-function interact_plot(filename)
+function interact_plot(filename,pos,vel,dt)
     fps = 1 / dt
     vel_mag = 0
     viridis = ColorSchemes.viridis
@@ -155,7 +161,6 @@ function interact_plot(filename)
         energy= Observable([200.0])
         points = Observable(Point3f[])
         colors = Observable(RGBf[])
-        animspeed = Observable(1.0)
         record_flag = Observable(false)
         fig = Figure(size=(1800, 1200))
         ax = LScene(fig[1, 1], height=1000, width=1000)
@@ -246,6 +251,7 @@ function interact_plot(filename)
         fig[2, 1] = slider
 
         fig
+        display(fig)
     end
 end
 function plot_energy(totEnergy,Ekin, Epot_L, Epot_G, time; filename = "default")
@@ -261,31 +267,57 @@ function plot_energy(totEnergy,Ekin, Epot_L, Epot_G, time; filename = "default")
         time,
         totEnergy,
         color =:blue,
-        label = L"E_{tot}")
+        label = L"E_{tot}",
+        linewidth = 2)
+    axislegend(ax;labelsize=50)
 
-   
+    ax = Axis(fig[1, 2],
+        yautolimitmargin = (0.1, 0.1),
+        xautolimitmargin = (0.1, 0.1),
+        title = "Energies",
+        xlabel = "timesteps",
+        ylabel = "Energy")
+    
     lines!(ax,
         time,
         Ekin,
         color = :red,
-        label = L"E_{kin}")
+        label = L"E_{kin}",
+        linewidth = 2)
+    axislegend(ax;labelsize=50)
+    ax = Axis(fig[2, 1],
+        yautolimitmargin = (0.1, 0.1),
+        xautolimitmargin = (0.1, 0.1),
+        title = "Energies",
+        xlabel = "timesteps",
+        ylabel = "Energy")
+    
     lines!(ax,
         time,
         Epot_L,
         color = :green,
         label = L"E_{pot_L}",
-        linestyle=:dot)
+        linewidth = 2)
+    axislegend(ax;labelsize=50)
+    ax = Axis(fig[2, 2],
+        yautolimitmargin = (0.1, 0.1),
+        xautolimitmargin = (0.1, 0.1),
+        title = "Energies",
+        xlabel = "timesteps",
+        ylabel = "Energy")
     lines!(ax,
         time,
         Epot_G,
         label = L"E_{pot_G}",
-        linestyle=:dot)
-    axislegend()
-    if filename != "default"
-        save("$filename.pdf", fig)
-    end
+        linewidth = 2)
+            
+    
+    axislegend(ax;labelsize=50)
     display(fig)
     fig
+    if filename != "default"
+        save("$filename.png", fig)
+    end
 end
 function plot_n_fit_vel_dist(all_vel, ntherm,σ ; fit = false ,filename = "default")
     figv = Figure(size = (1600,900))
@@ -299,7 +331,8 @@ function plot_n_fit_vel_dist(all_vel, ntherm,σ ; fit = false ,filename = "defau
         )
    
     vel_mag = sqrt.(sum(all_vel .^ 2, dims=3))[:,:,1]
-
+    vel_mag_mean = round(mean(vel_mag), digits=3)
+    vel_mag_std = round(std(vel_mag), digits = 3)
     last_velocities = vel_mag[ntherm:end,:]
     num_timesteps = size(last_velocities,1)
     num_molecules = size(last_velocities,2)
@@ -327,45 +360,47 @@ function plot_n_fit_vel_dist(all_vel, ntherm,σ ; fit = false ,filename = "defau
     Temp = param*mass/kb
     println("fitparam:", param)
     println("Temp:", Temp)
-    #covariance_matrix = estimate_covar(fit)
+    
     param_error = round(estimate_errors(fit)[1], digits = 3)
     hist!(ax2, 
-    t,
-    normalization = :pdf, 
-    bins = 100,
-    color = :values,
-    label = "Histogram")
-    lines!(ax2, v, fit_values, color = :red, label = "Fit param kT/m = $param +- $param_error \n T = $Temp K")
+        t,
+        normalization = :pdf, 
+        bins = 100,
+        color = :values,
+        label = "Histogram")
+
+    lines!(ax2, v, fit_values, color = :red, label = "Fit param kT/m = $param +- $param_error \n T = $Temp K \n <v^2> = $vel_mag_mean +- $vel_mag_std")
     axislegend()
     if filename != "default"
-        save("$filename.pdf", figv)
+        save("$filename.png", figv)
     end
     figv
     display(figv)
     
 end
 
-function calculateEnergy(all_pos,all_vel,mass,ϵ , σ,g, nskip,n_therm)
+function calculateEnergies(all_pos,all_vel,mass,ϵ , σ,g, nskip,n_therm)
     pos = all_pos[n_therm:end,:,:]
     vel = all_vel[n_therm:end,:,:]
     N = size(pos, 1)
-    vel_mag = sqrt.(sum(vel .^ 2, dims=3))[:,:,1] 
-    Ekin = sum(vel_mag,dims=2)[:,1] .* mass/2
+    pos = pos 
+    vel = vel
+    Ekin = sum(sum(vel .^ 2, dims=3)[:,:,1] ,dims=2)[:,1] ./2
     E_pot_L = zeros(Float64, size(pos,1))
     E_pot_g = zeros(Float64, size(pos,1))
     for i in tqdm(1:N)
-        e_L, e_g = LenardJonespot(pos[i,:,:],calculateDelta(pos[i,:,:]),mass,ϵ,g)
+        e_L, e_g = LenardJonespot(pos[i,:,:],calculateDelta(pos[i,:,:]),mass,ϵ,σ,g)
         E_pot_L[i] = sum(sum(e_L ,dims = 2)[:,1,:])
-        #E_pot_L[i] = e_L
         E_pot_g[i] = sum(sum(e_g ,dims = 2)[:,1,:])
+        
     end
-    #.+ E_pot_g
-    totalE= Ekin .+ E_pot_L 
+    
+    totalE= Ekin .+ E_pot_L .+ E_pot_g
     return totalE, Ekin, E_pot_L ,E_pot_g
     
 end
 
-function height_dist_plot_n_fit(all_positions,ntherm;filename = "default")
+function height_dist_plot_n_fit(all_positions,ntherm,g;filename = "default")
     pos = all_positions[ntherm:end,:,:]
     z_pos = pos[:,:,3]
     N = size(all_positions,2)
@@ -382,18 +417,18 @@ function height_dist_plot_n_fit(all_positions,ntherm;filename = "default")
    
 
 
-    println("fuck 1")
     
     h = range(minimum(z_pos),maximum(z_pos),length = 1000)
     out, bin = myhist(z_pos,minimum(z_pos),maximum(z_pos),100)
     normalized = out / (length(z_pos)*(bin[2]-bin[1]))
     p0 = [10.0,10.0]
-    println("fuck 2")
+   
     fit = curve_fit(height_dist, bin, normalized, p0)
-    println("fuck 3")
+    
     fit_values = height_dist(h, fit.param)
-    println("fuck 4")
+    
     param = round(fit.param[1], digits = 3)
+    kbTM = param * g
     println("fitparam:", param)
     param_error = round(estimate_errors(fit)[1], digits = 3)
     hist!(ax2, 
@@ -402,40 +437,88 @@ function height_dist_plot_n_fit(all_positions,ntherm;filename = "default")
     bins = 100,
     color = :values,
     label = "Histogram")
-    lines!(ax2, h, fit_values, color = :red, label = "Fit param hs = $param +- $param_error")
+    lines!(ax2, h, fit_values, color = :red, label = "Fit param hs = $param +- $param_error \n kbT/m = $kbTM")
     axislegend()
     if filename != "default"
-        save("$filename.pdf", figh)
+        save("$filename.png", figh)
     end
     figh
     display(figh)
-    
+    return ax2
     
 
 end
-m = 1
-g = 0.1
-lenard(r) = LenardJones(r, m, 1, 50)
-boundary = [0.0 0.0 0.0; 5.0*1.12 5.0*1.12 40]
-dt = 0.001
-N_max = 50000
-n_therm = Int(N_max*0.2)
-start_pos , start_vel = set_molecule_pos(150,boundary,random=false , grid = [3 3 5])
-#println(start_pos)
-pos, vel, acc = @time Leapfrog(lenard, N_max, dt, start_pos,start_vel,boundary)
 
-height_dist_plot_n_fit(pos,n_therm,filename = "heightdist_150_50g")
-plot_n_fit_vel_dist(vel,n_therm,σ,filename = "velocitydist_150_50g")  
-with_theme(theme_black()) do 
-    #plot_n_fit_vel_dist(vel,n_therm,σ)  
-end   
-#Energytot, Ekin , Epot_L, Epot_G = calculateEnergy(pos,vel,mass,ϵ , σ,g ,1,n_therm)
+#main simulation velosity distribution and height distribution 
+#animation can be controlled via the slider
+sim1 =true
+if sim1 == true
+    m = 1
+    g = 50
+    lenard(r) = LenardJones(r, m, 1, g)
+    boundary = [0.0 0.0 0.0; 5.0*1.12 5.0*1.12 20]
+    dt = 0.001
+    N_max = 10000
+    n_therm = Int(N_max*0.2)
+    start_pos , start_vel = set_molecule_pos(150,boundary,random=false , grid = [4 4 5], offset = [0.0,0.0,2.0])
+   
+    pos, vel, acc = Leapfrog(lenard, N_max, dt, start_pos , start_vel,boundary,nskip= 30)
+    
+    with_theme(theme_black()) do 
+        height_dist_plot_n_fit(pos,n_therm,g,filename = "heightdist_N150_50g_100K")
+    end
+    
+    with_theme(theme_black()) do 
+        plot_n_fit_vel_dist(vel,n_therm,σ,filename = "veltdist_N150_50g_100K")  
+    end   
 
-#Time = 1:size(Energytot,1)
+    
+    interact_plot("animation5.mp4",pos,vel,dt) 
+    end
 
-with_theme(theme_black()) do 
-    #plot_energy(Energytot,Ekin,Epot_L, Epot_G,Time)
+#computational effort
+sim2 = true
+if sim2 == true
+    m = 1
+    g = 0.1
+    lenard(r) = LenardJones(r, m, 1, g)
+    N = 1:100
+    println(N)
+    boundary = [0.0 0.0 0.0; 10.0*1.12 10.0*1.12 15]
+    dt = 0.02
+    N_max = 10000
+    times = zeros(Float64, N[end])
+    #pos, vel, acc = Leapfrog(lenard, N_max, dt, [0.0 0.0 0.0],[0.0 0.0 0.0],boundary)
+    for n in tqdm(N)
+        start_pos2 , start_vel2 = set_molecule_pos(n,boundary,random=false , grid = [3 3 5], offset = [0.0,0.0,4.0])
+       
+        t = time()
+        pos2, vel2, acc2 = @time Leapfrog(lenard, N_max, dt, start_pos2,start_vel2,boundary)
+        dt1 = time() - t 
+        times[n] = dt1
+    end
+    function compeff(x,p)
+        p[1].*x.*log.(10,x)
+    end
+
+    fit2 = curve_fit(compeff, N,times, [2.0])
+
+    fitvals = compeff(N,fit2.param)
+    param = round(fit2.param[1],digits = 2)
+
+    fig = Figure(size=(1200,800))
+    ax = Axis(fig[1, 1],
+    yautolimitmargin = (0.1, 0.1),
+    xautolimitmargin = (0.1, 0.1),
+    title = "Computational effort for 10000 timesteps",
+    xlabel = "N",
+    ylabel = "time elapsed")
+
+    lines!(ax, N, times,label = "total runtime of leapfrog")
+    lines!(ax, N, fitvals,label = " $param*x*log(x)")
+
+    axislegend()    
+    save("computational_effort_fit.png", fig)
+    CSV.write("computational_effort_fit.csv",  Tables.table(times), writeheader=false)
+    display(fig)
 end
-
-#interact_plot("animation5.mp4") 
-#[-2.0 0.0 0.0; 2.0 0.0 0.0; 0.0 -2.0 0.0; 0.0 2.0 0.0], [0.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 0.0]
